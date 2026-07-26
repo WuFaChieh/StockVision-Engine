@@ -26,10 +26,13 @@ from reports.explainability import ExplainabilityTreeGenerator
 from reports.report import AIReporter
 from backtest.engine import BacktestEngine
 
+import math
+
 def make_json_serializable(obj):
     """
-    Recursively converts numpy data types (int64, float64, ndarray, bool_)
-    and pandas NaN to native Python types for clean JSON responses.
+    Recursively converts numpy data types (int64, float64, ndarray, bool_),
+    pandas NaNs, and float inf/nan values to native Python types or None
+    for clean JSON responses.
     """
     if isinstance(obj, dict):
         return {k: make_json_serializable(v) for k, v in obj.items()}
@@ -38,7 +41,14 @@ def make_json_serializable(obj):
     elif isinstance(obj, (np.int64, np.int32, np.int16, np.int8)):
         return int(obj)
     elif isinstance(obj, (np.float64, np.float32, np.float16)):
-        return float(obj)
+        val = float(obj)
+        if math.isnan(val) or math.isinf(val):
+            return None
+        return val
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
     elif isinstance(obj, np.ndarray):
         return make_json_serializable(obj.tolist())
     elif isinstance(obj, np.bool_):
@@ -46,6 +56,7 @@ def make_json_serializable(obj):
     elif pd.isna(obj):
         return None
     return obj
+
 
 app = FastAPI(title="StockVision Pro - 企業投資決策系統 v2.5")
 
@@ -202,11 +213,17 @@ async def evaluate_stock(ticker: str, force: bool = False):
             "timestamp": processed["timestamp"]
         }
         
-        return make_json_serializable(result_payload)
+        clean_payload = make_json_serializable(result_payload)
+        import json
+        payload_bytes = len(json.dumps(clean_payload).encode('utf-8'))
+        print(f"[API /api/evaluate] Successfully evaluated {ticker}. Response JSON size: {payload_bytes} bytes ({payload_bytes / 1024:.2f} KB)", flush=True)
+        return clean_payload
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[ERROR /api/evaluate] Failed to evaluate stock '{ticker}': {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        sys.stderr.flush()
+        raise HTTPException(status_code=500, detail=f"Stock evaluation error ({ticker}): {str(e)}")
 
 @app.get("/api/backtest")
 async def backtest_strategy(ticker: str, strategy: str):
