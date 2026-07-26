@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockVision Engine v2.5 - 台灣頂級 AI 股票研究平台</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Marked Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.75);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --stockvision-cyan: #06b6d4;
+            --shadow-premium: 0 10px 30px rgba(0, 0, 0, 0.5);
+            --glass-blur: blur(12px);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', 'Outfit', -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding-bottom: 3rem;
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(6, 182, 212, 0.05) 0px, transparent 50%);
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .logo-title h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-title p { color: var(--text-muted); font-size: 0.95rem; margin-top: 0.2rem; }
+
+        /* Mode Toggle UI */
+        .mode-toggle-container {
+            display: inline-flex;
+            background: rgba(31, 41, 55, 0.8);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 4px;
+            gap: 4px;
+            backdrop-filter: var(--glass-blur);
+        }
+
+        .mode-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.55rem 1.2rem;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(135deg, var(--stockvision-cyan), var(--primary));
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+        }
+
+        /* Flow Progress Bar */
+        .workflow-bar {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(31, 41, 55, 0.6);
+            border: 1px solid var(--card-border);
+            padding: 0.8rem 1.5rem;
+            border-radius: 14px;
+            margin-bottom: 2rem;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            gap: 0.5rem;
+        }
+
+        .wf-step { display: flex; align-items: center; gap: 0.4rem; color: var(--text-muted); white-space: nowrap; }
+        .wf-step.active { color: var(--stockvision-cyan); font-weight: 700; }
+        .wf-num { background: rgba(255,255,255,0.1); width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; }
+        .wf-step.active .wf-num { background: var(--stockvision-cyan); color: #000; }
+
+        /* Mode Visibility Control */
+        body.ez-mode .pro-only { display: none !important; }
+        body:not(.ez-mode) .ez-only { display: none !important; }
+
+        /* EZ Mode Hero Cards */
+        .ez-hero-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .ez-hero-card {
+            background: rgba(31, 41, 55, 0.6);
+            border: 1px solid var(--card-border);
+            padding: 1.2rem;
+            border-radius: 16px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ez-hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--stockvision-cyan), var(--primary));
+        }
+
+        .ez-hero-title { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
+        .ez-hero-val { font-size: 1.5rem; font-weight: 800; color: #fff; margin-top: 0.4rem; }
+        .ez-hero-sub { font-size: 0.8rem; color: #34d399; margin-top: 0.2rem; }
+
+        /* 10-Second Executive Preview Banner Grid */
+        .exec-preview-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+        .exec-preview-card { background: rgba(31, 41, 55, 0.6); border: 1px solid var(--card-border); padding: 0.8rem 1rem; border-radius: 12px; text-align: center; }
+        .exec-preview-val { font-size: 1.15rem; font-weight: 800; color: #34d399; margin-top: 0.2rem; }
+
+        /* Search Panel */
+        .search-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: var(--glass-blur);
+            padding: 1.5rem;
+            border-radius: 16px;
+            box-shadow: var(--shadow-premium);
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .search-inputs { display: flex; align-items: center; gap: 1rem; flex-grow: 1; max-width: 650px; }
+
+        input[type="text"] {
+            width: 100%;
+            background: rgba(31, 41, 55, 0.8);
+            border: 1px solid var(--card-border);
+            padding: 0.8rem 1.2rem;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--stockvision-cyan);
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: white;
+            border: none;
+            padding: 0.8rem 1.8rem;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .chip {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .chip:hover {
+            background: rgba(6, 182, 212, 0.2);
+            border-color: var(--stockvision-cyan);
+            color: #fff;
+        }
+
+        .stage-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: var(--glass-blur);
+            border-radius: 16px;
+            padding: 1.8rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-premium);
+        }
+
+        .stage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 0.8rem;
+        }
+
+        .stage-tag {
+            background: rgba(6, 182, 212, 0.15);
+            color: var(--stockvision-cyan);
+            padding: 0.3rem 0.8rem;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        .stage-title { font-size: 1.25rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.6rem; }
+
+        /* Master Verdict Badge */
+        .master-verdict-badge {
+            background: #10b981;
+            color: white;
+            padding: 0.6rem 1.4rem;
+            border-radius: 14px;
+            font-weight: 800;
+            font-size: 1.2rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .contrib-chips-row { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.8rem; }
+        .contrib-chip { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 0.3rem 0.7rem; border-radius: 8px; font-size: 0.8rem; }
+
+        .golden-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        .golden-table td { padding: 0.55rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        .slider-bar-bg { width: 100%; height: 14px; background: rgba(255,255,255,0.1); border-radius: 7px; position: relative; margin: 1.5rem 0 0.8rem 0; }
+        .slider-bar-fill { height: 100%; background: linear-gradient(90deg, #10b981 0%, #f59e0b 50%, #ef4444 100%); border-radius: 7px; }
+        .slider-marker { position: absolute; top: -5px; width: 6px; height: 24px; background: #fff; border-radius: 3px; box-shadow: 0 0 10px #fff; transform: translateX(-50%); transition: left 0.3s ease; }
+
+        .evidence-step { padding: 0.8rem 1.2rem; background: rgba(255,255,255,0.03); border-left: 4px solid var(--primary); border-radius: 8px; margin-bottom: 0.8rem; font-size: 0.95rem; }
+
+        .triggers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .trigger-box { padding: 1.2rem; border-radius: 12px; font-size: 0.9rem; }
+        .trigger-box.upgrade { background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.25); }
+        .trigger-box.downgrade { background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.25); }
+
+        .bt-perf-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+        .bt-perf-card { background: rgba(31, 41, 55, 0.5); border: 1px solid var(--card-border); padding: 1rem; border-radius: 12px; }
+        .bt-perf-val { font-size: 1.3rem; font-weight: 800; color: #34d399; margin-top: 0.3rem; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+
+        #contentArea { display: none; }
+        #loadingSpinner { text-align: center; padding: 4rem 0; display: none; }
+        .spinner {
+            width: 50px; height: 50px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-left-color: var(--stockvision-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Tooltip Component */
+        .has-tooltip {
+            position: relative;
+            cursor: help;
+            border-bottom: 1px dashed var(--stockvision-cyan);
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .has-tooltip::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--stockvision-cyan);
+            color: #f3f4f6;
+            padding: 0.6rem 0.9rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: normal;
+            white-space: normal;
+            width: max-content;
+            max-width: 280px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            z-index: 100;
+            pointer-events: none;
+            line-height: 1.4;
+            text-align: left;
+        }
+
+        .has-tooltip:hover::after {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Progressive Disclosure Collapsible Section */
+        details.ez-collapsible {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 0.8rem 1.2rem;
+            margin-top: 1rem;
+            transition: all 0.2s ease;
+        }
+
+        details.ez-collapsible summary {
+            cursor: pointer;
+            font-weight: 700;
+            color: var(--stockvision-cyan);
+            user-select: none;
+            outline: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        details.ez-collapsible[open] summary {
+            margin-bottom: 0.8rem;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding-bottom: 0.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .ez-hero-grid { grid-template-columns: repeat(2, 1fr); }
+            .exec-preview-grid { grid-template-columns: repeat(3, 1fr); }
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body class="ez-mode">
+    <div class="container">
+        <header>
+            <div class="logo-title">
+                <h1>StockVision Engine v2.5</h1>
+                <p>全台股/美股 AI 智慧股票研究平台 <span class="pro-only">(Institutional Commercial Edition)</span><span class="ez-only" style="color: var(--stockvision-cyan); font-weight: 700;"> - 🔰 新手智慧引向版</span></p>
+            </div>
+            
+            <!-- Mode Switch Toggle -->
+            <div class="mode-toggle-container">
+                <button class="mode-btn active" id="btnEzMode" onclick="setMode('ez')">🔰 EZ 新手模式</button>
+                <button class="mode-btn" id="btnProMode" onclick="setMode('pro')">🏛️ Pro 機構模式</button>
+            </div>
+
+            <div class="quick-stocks" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="chip" onclick="searchStock('2330')">台積電 (2330)</span>
+                <span class="chip" onclick="searchStock('2454')">聯發科 (2454)</span>
+                <span class="chip" onclick="searchStock('2317')">鴻海 (2317)</span>
+                <span class="chip" onclick="searchStock('2603')">長榮 (2603)</span>
+                <span class="chip" onclick="searchStock('2881')">富邦金 (2881)</span>
+                <span class="chip" onclick="searchStock('3008')">大立光 (3008)</span>
+                <span class="chip" onclick="searchStock('NVDA')">NVIDIA</span>
+                <span class="chip" onclick="searchStock('AAPL')">Apple</span>
+            </div>
+        </header>
+
+        <!-- Standardized 8-Stage Workflow Bar (Pro Mode) -->
+        <div class="workflow-bar pro-only">
+            <div class="wf-step active"><span class="wf-num">1</span> 核心儀表板</div> ➔
+            <div class="wf-step active"><span class="wf-num">2</span> 10項投資檢核</div> ➔
+            <div class="wf-step active"><span class="wf-num">3</span> 產業評級</div> ➔
+            <div class="wf-step active"><span class="wf-num">4</span> AI 證據鏈</div> ➔
+            <div class="wf-step active"><span class="wf-num">5</span> 6模型估值共識</div> ➔
+            <div class="wf-step active"><span class="wf-num">6</span> 風險熱圖與進度</div> ➔
+            <div class="wf-step active"><span class="wf-num">7</span> 機構回測實績</div> ➔
+            <div class="wf-step active"><span class="wf-num">8</span> 調評時間軸</div>
+        </div>
+
+        <!-- Simplified 3-Step Workflow Bar (EZ Mode) -->
+        <div class="workflow-bar ez-only">
+            <div class="wf-step active"><span class="wf-num">1</span> 🎯 核心投資建議與合理目標價</div> ➔
+            <div class="wf-step active"><span class="wf-num">2</span> 🛡️ 企業防禦力與健康度</div> ➔
+            <div class="wf-step active"><span class="wf-num">3</span> ⚡ 警示風險與完整白話研報</div>
+        </div>
+
+        <!-- Search Control -->
+        <div class="search-panel">
+            <div class="search-inputs">
+                <input type="text" id="tickerInput" placeholder="輸入任意台股代號 (如 2330, 2454, 2603) 或美股 (如 NVDA, AAPL)" value="2330" onkeyup="if(event.key==='Enter') runEvaluation()">
+                <button class="btn" onclick="runEvaluation()">🚀 運行 8 階段機構研報流程</button>
+            </div>
+            <button class="btn" style="background: rgba(255,255,255,0.08);" onclick="runEvaluation(true)">🔄 強制刷新數據</button>
+        </div>
+
+        <div id="loadingSpinner">
+            <div class="spinner"></div>
+            <p style="color: var(--text-muted);" id="loadingText">正在執行 StockVision Engine v2.5 (10項檢核 + 6模型估值共識 + 風險熱圖)...</p>
+        </div>
+
+        <!-- Main Standardized Flow -->
+        <div id="contentArea">
+
+            <!-- EZ Mode Hero Preview (Simplified First Screen) -->
+            <div class="ez-hero-grid ez-only">
+                <div class="ez-hero-card">
+                    <div class="ez-hero-title">🎯 全域投資建議</div>
+                    <div class="ez-hero-val" id="ezRatingText" style="color: #34d399;">買入 (Buy)</div>
+                    <div class="ez-hero-sub">AI 綜合強烈買入信號</div>
+                </div>
+                <div class="ez-hero-card">
+                    <div class="ez-hero-title">💰 估值共識合理目標價</div>
+                    <div class="ez-hero-val" style="color: #60a5fa;" id="ezTargetRangeText">$500 - $650</div>
+                    <div class="ez-hero-sub">綜合 6 大模型區間</div>
+                </div>
+                <div class="ez-hero-card">
+                    <div class="ez-hero-title">🛡️ 公司競爭護城河 <span class="has-tooltip" data-tooltip="護城河代表企業抵禦競爭對手的特許優勢與防禦實力">❓</span></div>
+                    <div class="ez-hero-val" style="color: #a78bfa;" id="ezMoatText">寬廣護城河</div>
+                    <div class="ez-hero-sub" id="ezMoatSub">通過 4/4 項黃金標準</div>
+                </div>
+                <div class="ez-hero-card">
+                    <div class="ez-hero-title">🌟 企業健康總分</div>
+                    <div class="ez-hero-val" style="color: var(--stockvision-cyan);" id="ezHealthText">20 / 30 分</div>
+                    <div class="ez-hero-sub" id="ezChecklistPassSub">10項檢核通過率 80%</div>
+                </div>
+            </div>
+
+            <!-- Pro Mode 10-Second Executive Preview Banner -->
+            <div class="exec-preview-grid pro-only">
+                <div class="exec-preview-card">
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">全域主導評級</div>
+                    <div class="exec-preview-val" id="prevRatingText">買入 (Buy)</div>
+                </div>
+                <div class="exec-preview-card">
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">共識目標價區間</div>
+                    <div class="exec-preview-val" style="color: #60a5fa;" id="prevTargetRangeText">$500 - $650</div>
+                </div>
+                <div class="exec-preview-card">
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">StockVision 護城河</div>
+                    <div class="exec-preview-val" style="color: #a78bfa;" id="prevMoatText">Wide Moat</div>
+                </div>
+                <div class="exec-preview-card">
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">健康星圖分數</div>
+                    <div class="exec-preview-val" style="color: var(--stockvision-cyan);" id="prevHealthText">20 / 30 分</div>
+                </div>
+                <div class="exec-preview-card">
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">95% 統計信心區間</div>
+                    <div class="exec-preview-val" style="color: #f59e0b;" id="prevCiText">60.3 ± 3.5 分</div>
+                </div>
+                <div class="exec-preview-card">
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">檢核通過率</div>
+                    <div class="exec-preview-val" id="prevChecklistPassText">80% (8/10)</div>
+                </div>
+            </div>
+
+            <!-- Stage 1: Executive Dashboard -->
+            <div class="stage-card">
+                <div class="stage-header">
+                    <span class="stage-title">📍 Stage 1: 核心儀表板 <span class="pro-only">與 Model Card v2.5 規格說明</span></span>
+                    <span class="stage-tag">STAGE 1 / 8</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <span style="font-size: 1.6rem; font-weight: 800; color: #fff;" id="stockNameHeader">台積電 (2330.TW)</span>
+                        <span style="color: var(--text-muted); margin-left: 10px;" id="sectorBadge">產業: 科技業</span>
+                    </div>
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <span class="badge pro-only" style="background: rgba(99,102,241,0.2); color: #a78bfa;" id="masterScoreCiBadge">全域分數: 60.3 ± 3.5 分 (95% CI)</span>
+                        <div class="master-verdict-badge" id="masterVerdictBadge">🏆 買入 (Buy)</div>
+                    </div>
+                </div>
+                <div style="background: rgba(99, 102, 241, 0.1); border-left: 4px solid var(--primary); padding: 1rem; border-radius: 8px; font-size: 1.05rem; margin-bottom: 1rem;" id="execSummaryText"></div>
+                
+                <!-- Pro Mode Raw Model Card View -->
+                <div class="pro-only" id="modelCardContainer" style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px;"></div>
+                
+                <!-- EZ Mode Progressive Disclosure Collapsible -->
+                <details class="ez-collapsible ez-only">
+                    <summary>💡 點擊展開 Model Card v2.5 高階演算法規格與統計數據</summary>
+                    <div id="modelCardContainerEz" style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; padding-top: 0.5rem;"></div>
+                </details>
+            </div>
+
+            <!-- Stage 2: 10-Item Investment Checklist & Health Matrix -->
+            <div class="grid-2">
+                <div class="stage-card" style="margin-bottom: 0;">
+                    <div class="stage-header">
+                        <span class="stage-title">📋 Stage 2: 10 項全方位投資檢核清單</span>
+                        <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;" id="checklistPassBadge">8 / 10 項 (80%)</span>
+                    </div>
+                    <div style="font-size: 1.1rem; font-weight: 800; color: #a78bfa; margin-bottom: 0.5rem;" id="moatTitleText">Wide Moat (寬廣護城河)</div>
+                    <table class="golden-table" id="investment10ChecklistTable"></table>
+                </div>
+
+                <div class="stage-card" style="margin-bottom: 0; text-align: center;">
+                    <div class="stage-header">
+                        <span class="stage-title">💎 Stage 2: 五維健康星圖 <span class="has-tooltip" data-tooltip="評估企業在估值、成長性、過去績效、財務健康、股利回報 5 大層面的綜合得分">❓</span></span>
+                        <span style="font-weight: 800; color: var(--stockvision-cyan);" id="healthMatrixScoreText">20 / 30 分</span>
+                    </div>
+                    <canvas id="healthMatrixChart" style="max-height: 250px;"></canvas>
+                </div>
+            </div>
+            <div style="margin-bottom: 2rem;"></div>
+
+            <!-- Stage 3: Sector Master Rating & Contributions -->
+            <div class="stage-card">
+                <div class="stage-header">
+                    <span class="stage-title">🎯 Stage 3: 動態產業主導評級與加權貢獻拆解</span>
+                    <span class="stage-tag">STAGE 3 / 8</span>
+                </div>
+                <div style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 0.8rem;" id="sectorRationaleText"></div>
+                <div class="contrib-chips-row" id="contribChipsRow"></div>
+            </div>
+
+            <!-- Stage 4: AI Four-Stage Evidence-Based Reasoning Chain -->
+            <div class="stage-card">
+                <div class="stage-header">
+                    <span class="stage-title">🔗 Stage 4: 無矛盾四階 AI 證據推理鏈</span>
+                    <span class="stage-tag">STAGE 4 / 8</span>
+                </div>
+                <div id="evidenceChainContainer"></div>
+            </div>
+
+            <!-- Stage 5: Valuation & 6-Model Fair Value Consensus -->
+            <div class="stage-card">
+                <div class="stage-header">
+                    <span class="stage-title">⚖️ Stage 5: 6 大估值模型共識 (Fair Value Consensus) 與同步滑軌</span>
+                    <span class="stage-tag">STAGE 5 / 8</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.05rem; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <span>6大模型共識合理價: <strong id="consensusValText" style="color: #34d399;">$600.0</strong></span>
+                    <span>共識目標價區間: <strong id="consensusRangeText" style="color: #60a5fa;">$520 - $680</strong></span>
+                </div>
+                <table class="golden-table" id="consensusModelsTable" style="margin-bottom: 1rem;"></table>
+                <div class="slider-bar-bg">
+                    <div class="slider-bar-fill"></div>
+                    <div class="slider-marker" id="sliderMarkerPin" style="left: 50%;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+                    <span>低估 (Discount)</span>
+                    <span>公允 (Fair Value)</span>
+                    <span>溢價 (Premium)</span>
+                </div>
+                <div style="margin-top: 1rem; font-size: 0.92rem; color: #d1d5db;" id="sliderStatusDesc"></div>
+            </div>
+
+            <!-- Stage 6: Risk Heatmap & Trigger Progress -->
+            <div class="stage-card">
+                <div class="stage-header">
+                    <span class="stage-title">⚡ Stage 6: 7大風險熱圖與調評觸發進度 (Trigger Progress)</span>
+                    <span class="stage-tag">STAGE 6 / 8</span>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <div style="font-weight: 700; color: #fff; margin-bottom: 0.8rem;">🗺️ 7 大風險維度熱圖 (Risk Heatmap)</div>
+                        <div id="riskHeatmapContainer"></div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 700; color: #fff; margin-bottom: 0.8rem;">🎯 評級觸發條件達成進度 (Trigger Progress)</div>
+                        <div class="trigger-box upgrade" style="margin-bottom: 0.8rem;">
+                            <div style="font-weight: 700; color: #34d399; margin-bottom: 0.4rem;">🚀 評級上調觸發進度</div>
+                            <div id="upgradeTriggersProgressList"></div>
+                        </div>
+                        <div class="trigger-box downgrade">
+                            <div style="font-weight: 700; color: #f87171; margin-bottom: 0.4rem;">⚠️ 評級降級觸發進度</div>
+                            <div id="downgradeTriggersProgressList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- What Changes My Rating? & Peer Comparison -->
+            <div class="grid-2">
+                <div class="stage-card" style="margin-bottom: 0;">
+                    <div class="stage-header">
+                        <span class="stage-title">🎯 What Changes My Rating? 調評條件</span>
+                    </div>
+                    <div id="whatChangesContainer" style="font-size: 0.9rem; color: #d1d5db; line-height: 1.6;"></div>
+                </div>
+
+                <div class="stage-card" style="margin-bottom: 0;">
+                    <div class="stage-header">
+                        <span class="stage-title">📊 同業競爭對手強弱對比 (Peer Matrix)</span>
+                    </div>
+                    <table class="golden-table" id="peerMatrixTable"></table>
+                </div>
+            </div>
+            <div style="margin-bottom: 2rem;"></div>
+
+            <!-- Stage 7: Backtest & Model Credibility -->
+            <div class="stage-card">
+                <div class="stage-header">
+                    <span class="stage-title">📈 Stage 7: 5 年歷史回測實績與機構績效指標</span>
+                    <span class="stage-tag">STAGE 7 / 8</span>
+                </div>
+                <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;" id="btMetaText"></div>
+                <div class="bt-perf-grid">
+                    <div class="bt-perf-card">
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">5年 Alpha 超額報酬 <span class="has-tooltip" data-tooltip="超越大盤大勢獲得的純演算法超額績效">❓</span></div>
+                        <div class="bt-perf-val" id="btAlphaText">+31.3%</div>
+                    </div>
+                    <div class="bt-perf-card">
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">歷史調倉勝率 (Win Rate)</div>
+                        <div class="bt-perf-val" id="btWinRateText">74.2%</div>
+                    </div>
+                    <div class="bt-perf-card">
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">歷史最大回撤 (Max Drawdown) <span class="has-tooltip" data-tooltip="歷史策略出現過的最大累積下跌幅度，越小越安全">❓</span></div>
+                        <div class="bt-perf-val" style="color: #f87171;" id="btMaxDdText">-14.2%</div>
+                    </div>
+                    <div class="bt-perf-card">
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">主動夏普比率 (Sharpe Ratio) <span class="has-tooltip" data-tooltip="每承擔1單位風險能獲得的超額報酬，高於 1.5 屬優秀水準">❓</span></div>
+                        <div class="bt-perf-val" id="btSharpeText">1.85</div>
+                    </div>
+                </div>
+
+                <!-- Pro Mode Ratios View -->
+                <div class="pro-only" style="margin-top: 1rem; display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted);" id="btRatiosText"></div>
+                
+                <!-- EZ Mode Collapsible Ratios View -->
+                <details class="ez-collapsible ez-only">
+                    <summary>💡 點擊展開 Sortino, Calmar, Info Ratio 與 Beta 進階風險比率</summary>
+                    <div style="margin-top: 0.5rem; display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted);" id="btRatiosTextEz"></div>
+                </details>
+            </div>
+
+            <!-- Stage 8: Timeline & Rating Change Trace Log -->
+            <div class="stage-card">
+                <div class="stage-header">
+                    <span class="stage-title">📜 Stage 8: 歷史調評時間軸與事件 Trace Log</span>
+                    <span class="stage-tag">STAGE 8 / 8</span>
+                </div>
+                <div id="ratingLogContainer" style="font-size: 0.9rem; color: #d1d5db; line-height: 1.6;"></div>
+            </div>
+
+            <!-- Full Report Card -->
+            <div class="stage-card">
+                <div class="stage-header">
+                    <span class="stage-title">📝 完整 StockVision Engine v2.5 機構研報全文</span>
+                </div>
+                <div id="reportContainer" style="line-height: 1.8; color: #d1d5db; font-size: 0.95rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let healthMatrixChart = null;
+        let currentMode = 'ez';
+
+        function setMode(mode) {
+            currentMode = mode;
+            localStorage.setItem('stockvision_mode', mode);
+            
+            if (mode === 'ez') {
+                document.body.classList.add('ez-mode');
+                document.getElementById('btnEzMode').classList.add('active');
+                document.getElementById('btnProMode').classList.remove('active');
+            } else {
+                document.body.classList.remove('ez-mode');
+                document.getElementById('btnProMode').classList.add('active');
+                document.getElementById('btnEzMode').classList.remove('active');
+            }
+        }
+
+        async function runEvaluation(force = false) {
+            const rawTicker = document.getElementById('tickerInput').value.trim();
+            if (!rawTicker) return;
+
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('contentArea').style.display = 'none';
+            document.getElementById('loadingText').innerText = `正在為 [${rawTicker}] 分析資料並運行 StockVision Engine v2.5...`;
+
+            try {
+                const res = await fetch(`/api/evaluate?ticker=${encodeURIComponent(rawTicker)}&force=${force}`);
+                if (!res.ok) throw new Error('API Error');
+                const data = await res.json();
+                renderDashboard(data);
+            } catch (err) {
+                alert('載入失敗，請確認代號是否正確。');
+            } finally {
+                document.getElementById('loadingSpinner').style.display = 'none';
+            }
+        }
+
+        function searchStock(symbol) {
+            document.getElementById('tickerInput').value = symbol;
+            runEvaluation();
+        }
+
+        function renderDashboard(data) {
+            document.getElementById('contentArea').style.display = 'block';
+
+            const mv = data.master_verdict;
+            const sm = data.stockvision_moat;
+            const ch = sm ? sm.investment_checklist_10 : null;
+
+            // EZ Hero Preview Card Populate
+            document.getElementById('ezRatingText').innerText = mv.rating;
+            document.getElementById('ezRatingText').style.color = mv.color || '#34d399';
+            document.getElementById('ezTargetRangeText').innerText = data.target_range;
+            document.getElementById('ezMoatText').innerText = sm.moat_rating;
+            if (sm.passed_golden_count !== undefined) {
+                document.getElementById('ezMoatSub').innerText = `通過 ${sm.passed_golden_count}/4 項黃金標準`;
+            }
+            document.getElementById('ezHealthText').innerText = `${data.health_matrix.matrix_total} / 30 分`;
+            if (ch) {
+                document.getElementById('ezChecklistPassSub').innerText = `10項檢核通過率 ${ch.pass_rate_pct.toFixed(0)}%`;
+            }
+
+            // Pro Executive 10-Second Preview Populate
+            document.getElementById('prevRatingText').innerText = mv.rating;
+            document.getElementById('prevTargetRangeText').innerText = data.target_range;
+            document.getElementById('prevMoatText').innerText = sm.moat_rating;
+            document.getElementById('prevHealthText').innerText = `${data.health_matrix.matrix_total} / 30 分`;
+            if (mv.confidence_interval) {
+                document.getElementById('prevCiText').innerText = mv.confidence_interval.range_text;
+            }
+            if (ch) {
+                document.getElementById('prevChecklistPassText').innerText = `${ch.pass_rate_pct.toFixed(0)}% (${ch.passed_count}/${ch.total_count})`;
+                document.getElementById('checklistPassBadge').innerText = `${ch.summary_text}`;
+            }
+
+            // Stage 1
+            document.getElementById('stockNameHeader').innerText = `${data.info.longName || data.ticker} (${data.ticker})`;
+            document.getElementById('sectorBadge').innerText = `產業: ${data.matched_sector}`;
+            
+            const masterBadge = document.getElementById('masterVerdictBadge');
+            masterBadge.innerText = mv.rating;
+            masterBadge.style.background = mv.color;
+            
+            if (mv.confidence_interval) {
+                document.getElementById('masterScoreCiBadge').innerText = `全域分數: ${mv.confidence_interval.range_text} (95% CI)`;
+            }
+            
+            document.getElementById('execSummaryText').innerText = data.investment_thesis.executive_summary;
+            
+            const mc = data.model_card;
+            if (mc) {
+                const modelHtml = `
+                    <div><strong>模型規格</strong>: ${mc.model_version} | <strong>數據時間</strong>: ${mc.data_freshness}</div>
+                    <div><strong>核心假設</strong>: ${mc.core_assumptions}</div>
+                    <div><strong>已知限制</strong>: ${mc.known_limitations}</div>
+                `;
+                document.getElementById('modelCardContainer').innerHTML = modelHtml;
+                document.getElementById('modelCardContainerEz').innerHTML = modelHtml;
+            }
+
+            // Stage 2: 10-Item Checklist
+            document.getElementById('moatTitleText').innerText = `${sm.moat_rating} (通過 ${sm.passed_golden_count}/4 項黃金標準)`;
+            
+            if (ch && ch.items) {
+                document.getElementById('investment10ChecklistTable').innerHTML = ch.items.map(item => `
+                    <tr>
+                        <td>${item.passed ? '✅' : '❌'} <strong>${item.item}</strong></td>
+                        <td style="text-align: right; color: ${item.passed ? '#34d399' : '#f87171'}; font-weight: 700;">${item.actual}</td>
+                    </tr>
+                `).join('');
+            }
+            renderHealthMatrixChart(data.health_matrix);
+            document.getElementById('healthMatrixScoreText').innerText = `${data.health_matrix.matrix_total} / 30 分`;
+
+            // Stage 3
+            document.getElementById('sectorRationaleText').innerText = `權重配置邏輯: ${mv.rationale || ''}`;
+            if (mv.contributions) {
+                document.getElementById('contribChipsRow').innerHTML = mv.contributions.map(c => `
+                    <div class="contrib-chip">
+                        <span>${c.strategy} (${c.weight_pct}):</span> <strong style="color: #34d399;">+${c.contribution}分</strong>
+                    </div>
+                `).join('');
+            }
+
+            // Stage 4
+            const ec = data.investment_thesis.evidence_chain;
+            document.getElementById('evidenceChainContainer').innerHTML = `
+                <div class="evidence-step">${ec.stage_1_data}</div>
+                <div class="evidence-step">${ec.stage_2_evidence}</div>
+                <div class="evidence-step">${ec.stage_3_reasoning}</div>
+                <div class="evidence-step" style="border-left-color: #10b981; font-weight: 700;">${ec.stage_4_conclusion}</div>
+            `;
+
+            // Stage 5: Fair Value Consensus
+            document.getElementById('consensusValText').innerText = `$${data.consensus_fair_value.toFixed(1)}`;
+            document.getElementById('consensusRangeText').innerText = `${data.target_range}`;
+            
+            if (data.fair_value_consensus_models) {
+                document.getElementById('consensusModelsTable').innerHTML = data.fair_value_consensus_models.map(m => `
+                    <tr>
+                        <td><strong>${m.name}</strong> (${m.weight})</td>
+                        <td style="color: var(--text-muted); font-size: 0.8rem;">${m.desc}</td>
+                        <td style="text-align: right; font-weight: 700; color: #34d399;">$${m.value}</td>
+                    </tr>
+                `).join('');
+            }
+
+            const sliderPos = data.slider_percent || 50.0;
+            document.getElementById('sliderMarkerPin').style.left = `${sliderPos}%`;
+            
+            const diffPct = data.investment_thesis.evidence_chain.stage_3_reasoning;
+            document.getElementById('sliderStatusDesc').innerText = `${diffPct}`;
+
+            // Stage 6: Risk Heatmap & Trigger Progress
+            if (data.risk_heatmap) {
+                document.getElementById('riskHeatmapContainer').innerHTML = data.risk_heatmap.map(r => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 0.5rem 0.8rem; border-radius: 6px; margin-bottom: 0.4rem; font-size: 0.85rem;">
+                        <span><strong>${r.risk}</strong>: <span style="color: #9ca3af;">${r.desc}</span></span>
+                        <span class="badge" style="background: ${r.color}22; color: ${r.color};">${r.level}</span>
+                    </div>
+                `).join('');
+            }
+
+            const tp = data.trigger_progress;
+            if (tp) {
+                document.getElementById('upgradeTriggersProgressList').innerHTML = (tp.upgrade_triggers || []).map(t => `
+                    <div style="margin-bottom: 0.4rem; font-size: 0.85rem;">
+                        • ${t.condition} ➔ <strong style="color: #34d399;">[${t.progress}]</strong>
+                    </div>
+                `).join('');
+                document.getElementById('downgradeTriggersProgressList').innerHTML = (tp.downgrade_triggers || []).map(t => `
+                    <div style="margin-bottom: 0.4rem; font-size: 0.85rem;">
+                        • ${t.condition} ➔ <strong style="color: #f87171;">[${t.progress}]</strong>
+                    </div>
+                `).join('');
+            }
+
+            // What Changes My Rating?
+            const wc = data.what_changes_my_rating;
+            if (wc) {
+                document.getElementById('whatChangesContainer').innerHTML = `
+                    <div style="margin-bottom: 0.6rem;">🚀 <strong>何時調升至 Buy?</strong><br><span style="color: #9ca3af;">${wc.upgrade_to_buy}</span></div>
+                    <div>⚠️ <strong>何時降級至 Avoid?</strong><br><span style="color: #9ca3af;">${wc.downgrade_to_avoid}</span></div>
+                `;
+            }
+
+            // Peer Matrix
+            if (data.peer_matrix) {
+                document.getElementById('peerMatrixTable').innerHTML = `
+                    <tr><th>公司名稱</th><th>護城河</th><th>PE估值</th><th>ROE</th><th>評級</th></tr>
+                    ` + data.peer_matrix.map(p => `
+                    <tr>
+                        <td><strong>${p.company}</strong></td>
+                        <td>${p.moat}</td>
+                        <td>${p.pe}</td>
+                        <td>${p.roe}</td>
+                        <td><strong style="color: #34d399;">${p.rating}</strong></td>
+                    </tr>
+                `).join('');
+            }
+
+            // Stage 7: Backtest
+            const bm = data.backtest_metrics;
+            if (bm) {
+                document.getElementById('btAlphaText').innerText = `${bm.alpha >= 0 ? '+' : ''}${bm.alpha.toFixed(1)}%`;
+                document.getElementById('btWinRateText').innerText = `${bm.win_rate.toFixed(1)}%`;
+                document.getElementById('btMaxDdText').innerText = `${bm.max_drawdown.toFixed(1)}%`;
+                document.getElementById('btSharpeText').innerText = `${bm.sharpe.toFixed(2)}`;
+                
+                const ratiosHtml = `
+                    <span>Sortino Ratio: <strong>${bm.sortino}</strong></span>
+                    <span>Calmar Ratio: <strong>${bm.calmar}</strong></span>
+                    <span>Information Ratio: <strong>${bm.info_ratio}</strong></span>
+                    <span>Beta: <strong>${bm.beta}</strong></span>
+                    <span>波動率: <strong>${bm.volatility}%</strong></span>
+                `;
+                document.getElementById('btRatiosText').innerHTML = ratiosHtml;
+                document.getElementById('btRatiosTextEz').innerHTML = ratiosHtml;
+                
+                if (bm.metadata) {
+                    document.getElementById('btMetaText').innerText = `回測元數據: ${bm.metadata.period} | 基準: ${bm.metadata.benchmark} | ${bm.metadata.tx_fee} | ${bm.metadata.sample_size}`;
+                }
+            }
+
+            // Stage 8: Timeline Trace Log
+            const rlog = data.rating_change_log;
+            if (rlog) {
+                document.getElementById('ratingLogContainer').innerHTML = rlog.map(rl => `
+                    <div style="margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.3rem;">
+                        <strong>[${rl.date}] ${rl.rating}</strong>: <span style="color: #9ca3af;">${rl.event}</span>
+                    </div>
+                `).join('');
+            }
+
+            // Full Report Markdown
+            document.getElementById('reportContainer').innerHTML = marked.parse(data.report_markdown);
+        }
+
+        function renderHealthMatrixChart(hm) {
+            const ctx = document.getElementById('healthMatrixChart').getContext('2d');
+            if (healthMatrixChart) healthMatrixChart.destroy();
+
+            const p = hm.pillars;
+            const labels = ['Valuation (估值)', 'Future Growth (成長)', 'Past Performance (績效)', 'Financial Health (健康)', 'Dividend (回報)'];
+            const dataVals = [p.Valuation.score, p.FutureGrowth.score, p.PastPerformance.score, p.FinancialHealth.score, p.Dividend.score];
+
+            healthMatrixChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'StockVision 健康分數',
+                        data: dataVals,
+                        backgroundColor: 'rgba(6, 182, 212, 0.25)',
+                        borderColor: '#06b6d4',
+                        pointBackgroundColor: '#06b6d4'
+                    }]
+                },
+                options: {
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(255,255,255,0.1)' },
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            pointLabels: { color: '#e5e7eb', font: { size: 11 } },
+                            ticks: { display: false },
+                            min: 0, max: 6
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        window.onload = () => {
+            const savedMode = localStorage.getItem('stockvision_mode') || 'ez';
+            setMode(savedMode);
+            runEvaluation();
+        };
+    </script>
+</body>
+</html>
